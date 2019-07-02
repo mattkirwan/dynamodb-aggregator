@@ -28,8 +28,14 @@
   },
   "homepage": "https://github.com/mattkirwan/dynamodb-aggregator#readme",
   "devDependencies": {
+    "aws-sdk": "^2.485.0",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
-    "mocha": "^6.1.4"
+    "mocha": "^6.1.4",
+    "rewire": "^4.0.1",
+    "sinon": "^7.3.2"
+  },
+  "dependencies": {
+    "moment": "^2.24.0"
   }
 }
