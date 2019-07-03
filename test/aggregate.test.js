@@ -1,5 +1,5 @@
 const rewire = require("rewire")
-const aggregate = rewire("../aggregate")
+const aggregate = rewire("../index")
 
 const chai = require("chai")
 const expect = chai.expect
