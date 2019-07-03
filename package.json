@@ -1,6 +1,6 @@
 {
   "name": "@mattkirwan/dynamodb-aggregator",
-  "version": "0.0.4",
+  "version": "1.0.0",
   "description": "A module for aggregating DynamoDB fields",
   "main": "index.js",
   "scripts": {
