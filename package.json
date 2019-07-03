@@ -1,5 +1,5 @@
 {
-  "name": "dynamodb-aggregator",
+  "name": "@mattkirwan/dynamodb-aggregator",
   "version": "0.0.1",
   "description": "A module for aggregating DynamoDB fields",
   "main": "index.js",
@@ -28,7 +28,7 @@
   },
   "homepage": "https://github.com/mattkirwan/dynamodb-aggregator#readme",
   "devDependencies": {
-    "aws-sdk": "^2.485.0",
+    "aws-sdk": "^2.487.0",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
     "mocha": "^6.1.4",

@@ -9,16 +9,6 @@ chai.should()
 
 const sinon = require("sinon")
 
-// const AWS = require("aws-sdk")
-
-// const mockAWS = {
-//     DynamoDB: {
-//         DocumentClient: sinon.stub().returns({
-//             update: () => ({promise: sinonSandbox.stub().resolves({})})
-//         })
-//     }
-// }
-
 describe("Module", () => {
     it("should be a function", done => {
         aggregate.hourly.should.be.a("function")
@@ -26,10 +16,13 @@ describe("Module", () => {
     })
 })
 
+let update
+let AWS
+
 let metaData = {
     TableName: "SomeTable",
     PartitionKeyName: "ddb_partition_key_name",
-    SortKeyName: "ddb_rt_key_name",
+    SortKeyName: "ddb_sort_key_name",
 }
 
 let data = {
@@ -58,15 +51,17 @@ let data = {
 
 describe("#aggregateHourly()", () => {
 
-    let AWS
-
     beforeEach(() => {
+        update = () => {
+            return {
+                promise: () => {}
+            }
+        }
+        
         AWS = {
             DynamoDB: {
                 DocumentClient: {
-                    update: sinon.stub().returns({
-                        promise: (Promise.resolve)
-                    })
+                    update: sinon.spy(update)
                 }
             }
         }
@@ -89,18 +84,15 @@ describe("#aggregateHourly()", () => {
     })
 
     it("should call #formatDataHourly() once", () => {
-
         let spy = sinon.spy(aggregate.__get__("formatDataHourly"))
         aggregate.__set__("formatDataHourly", spy)
 
         return aggregate.hourly(AWS.DynamoDB.DocumentClient, metaData, {not: {real: []}}).then(p => {
             expect(spy.callCount).to.equal(1)
         })
-
     })
 
     it("should call #createUpdateQuery() for every partition in every key in the formatted data", () => {
-
         let formattedData = {
             "1562047200": {
                 someUniquePartitionKey: {
@@ -136,23 +128,35 @@ describe("#aggregateHourly()", () => {
         })
     })
 
-    // it("should call update once", () => {
+    it("should call #promiseUpdateQuery() for every update query", () => {
+        let spy = sinon.spy(aggregate.__get__("promiseUpdateQuery"))
+        aggregate.__set__("promiseUpdateQuery", spy)
 
-    //     let AWS = {
-    //         DynamoDB: {
-    //             DocumentClient: {
-    //                 update: sinon.stub().returns({
-    //                     promise: (Promise.resolve)
-    //                 })
-    //             }
-    //         }
-    //     }
+        return aggregate.hourly(AWS.DynamoDB.DocumentClient, metaData, data).then(p => {
+            expect(spy.callCount).to.equal(5) // Number of unique queries
+        })
+    })
 
-    //     return aggregateHourly(AWS.DynamoDB.DocumentClient, {"not":"empty"}).then(m => {
-    //         // console.log()
-    //         expect(AWS.DynamoDB.DocumentClient.update.callCount).to.equal(1)
-    //     })
-    // })
+    it("should call update for every update query", () => {
+
+        update = () => {
+            return {
+                promise: () => {}
+            }
+        }
+        
+        AWS = {
+            DynamoDB: {
+                DocumentClient: {
+                    update: sinon.spy(update)
+                }
+            }
+        }
+
+        return aggregate.hourly(AWS.DynamoDB.DocumentClient, metaData, data).then(m => {
+            expect(AWS.DynamoDB.DocumentClient.update.callCount).to.equal(5)
+        })
+    })
 
 })
 
@@ -197,14 +201,13 @@ describe("#formatDataHourly()", () => {
 
         expect(uut["1562058000"]["anotherUniquePartitionKey"]["yetAnotherAggregateFieldName"]).to.equal(1)
         expect(uut["1562072400"]["yetAnotherUniquePartitionKey"]["yetAnotherAggregateFieldName"]).to.equal(1)
-
     })
 
 })
 
 describe("#createUpdateQuery()", () => {
 
-    it.only("should create the correct query object", () => {
+    it("should create the correct query object", () => {
 
         metaData["PartitionKeyValue"] = "SomePartitionKey"
         metaData["SortKeyValue"] = "1562047200"
@@ -214,36 +217,79 @@ describe("#createUpdateQuery()", () => {
             anotherAggregateFieldName: 1
         }
 
-        let updateExpression = "ADD "
-        Object.keys(partitionedAggregateData).forEach(fieldName => {
-            updateExpression = `${updateExpression} #${fieldName} :${fieldName},`
-        })
-        updateExpression = updateExpression.replace(/,\s*$/, "")
-        console.log(updateExpression)
+        let uut = aggregate.__get__("createUpdateQuery")(metaData, partitionedAggregateData)
 
+        expect(uut).to.be.an("object")
+        expect(uut).to.have.property("TableName")
+        expect(uut["TableName"]).to.be.equal("SomeTable")
 
+        expect(uut).to.have.property("Key")
+        expect(uut["Key"]).to.have.property("ddb_partition_key_name")
+        expect(uut["Key"]).to.have.property("ddb_sort_key_name")
+        expect(uut["Key"]["ddb_partition_key_name"]).to.be.equal("SomePartitionKey")
+        expect(uut["Key"]["ddb_sort_key_name"]).to.be.equal("1562047200")
 
-        let expected = {
-            TableName: metaData.TableName,
-            Key: {
-                [metaData.PartitionKeyName]: metaData.PartitionKeyValue,
-                [metaData.SortKeyName]: Number(metaData.SortKeyValue)
-            },
-            UpdateExpression: updateExpression,
-            ExpressionAttributeNames: {
-                "#total": 'total'
-            },
-            // ExpressionAttributeValues: {
-            //     ":numOverlayActions": formattedParams[hour].numOverlayActions
-            // },
-            ReturnValues: "ALL_NEW",
-            ReturnConsumedCapacity: "TOTAL"
-        }        
+        expect(uut).to.have.property("UpdateExpression")
+        expect(uut["UpdateExpression"]).to.be.equal("ADD #anAggregateFieldName :anAggregateFieldName, #anotherAggregateFieldName :anotherAggregateFieldName")        
 
+        expect(uut).to.have.property("ExpressionAttributeNames")
+        expect(uut["ExpressionAttributeNames"]).to.have.property("#anAggregateFieldName")
+        expect(uut["ExpressionAttributeNames"]).to.have.property("#anotherAggregateFieldName")
+        expect(uut["ExpressionAttributeNames"]["#anAggregateFieldName"]).to.be.equal("anAggregateFieldName")
+        expect(uut["ExpressionAttributeNames"]["#anotherAggregateFieldName"]).to.be.equal("anotherAggregateFieldName")
 
-        console.log(expected)
-
-
+        expect(uut).to.have.property("ExpressionAttributeValues")
+        expect(uut["ExpressionAttributeValues"]).to.have.property(":anAggregateFieldName")
+        expect(uut["ExpressionAttributeValues"]).to.have.property(":anotherAggregateFieldName")
+        expect(uut["ExpressionAttributeValues"][":anAggregateFieldName"]).to.be.equal(1)
+        expect(uut["ExpressionAttributeValues"][":anotherAggregateFieldName"]).to.be.equal(1)
     })
 
+})
+
+describe("#promiseUpdateQuery()", () => {
+    
+    let query = {
+        TableName: 'SomeTable',
+        Key: {
+            ddb_partition_key_name: 'anotherUniquePartitionKey',
+            ddb_sort_key_name: '1562058000' },
+        UpdateExpression: 'ADD #yetAnotherAggregateFieldName :yetAnotherAggregateFieldName',
+        ExpressionAttributeNames: {
+            '#yetAnotherAggregateFieldName': 'yetAnotherAggregateFieldName'
+        },
+        ExpressionAttributeValues: {
+            ':yetAnotherAggregateFieldName': 1
+        },
+        ReturnValues: 'ALL_NEW',
+        ReturnConsumedCapacity: 'TOTAL'
+    }
+
+    beforeEach(() => {
+        update = () => {
+            return {
+                promise: () => {
+                    return Promise.resolve({ADynamoDB: "Response"})
+                }
+            }
+        }
+        
+        AWS = {
+            DynamoDB: {
+                DocumentClient: {
+                    update: sinon.spy(update)
+                }
+            }
+        }
+    })
+
+    afterEach(() => {
+        AWS = {}
+    });
+
+    it("should return a Promise", () => {
+        let uut = aggregate.__get__("promiseUpdateQuery")(AWS.DynamoDB.DocumentClient, query)
+
+        expect(uut).to.be.a('promise')
+    })
 })

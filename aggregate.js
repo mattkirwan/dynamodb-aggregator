@@ -3,7 +3,6 @@
 const moment = require("moment")
 
 module.exports.hourly = (AWSDocumentClient, metaData = {}, data = {}) => {
-    
     if (!Object.keys(metaData).length)
         return Promise.reject("No query metadata passed")
 
@@ -26,20 +25,9 @@ module.exports.hourly = (AWSDocumentClient, metaData = {}, data = {}) => {
 
     let updateQueries = [].concat(...partitionedUpdateQueries)
 
-    console.log(updateQueries)
+    let promisedUpdateQueries = updateQueries.map(query => promiseUpdateQuery(AWSDocumentClient, query))
 
-
-    // Create update() query
-
-    // update.promise
-
-
-    // console.log(AWSDocumentClient)
-
-    // AWSDocumentClient()
-    AWSDocumentClient.update()
-
-    return Promise.resolve()
+    return Promise.all(promisedUpdateQueries)
 }
 
 /**
@@ -55,7 +43,7 @@ module.exports.hourly = (AWSDocumentClient, metaData = {}, data = {}) => {
  *     }
  * }
  */
-const formatDataHourly = (data) =>  {
+const formatDataHourly = data =>  {
 
     let formattedParams = {}, startOfHour
     
@@ -79,15 +67,36 @@ const formatDataHourly = (data) =>  {
     return formattedParams
 }
 
+/**
+ * @description Generate a complete DynamoDB update object
+ * @param {*} metaData 
+ * @param {*} partitionedAggregateData 
+ */
 const createUpdateQuery = (metaData, partitionedAggregateData) => {
-    return {some:"query"}
+    let updateExpression = "ADD"
+    let expressionAttributeNames = {}
+    let expressionAttributeValues = {}
+    Object.keys(partitionedAggregateData).forEach(fieldName => {
+        updateExpression = `${updateExpression} #${fieldName} :${fieldName},`
+        expressionAttributeNames[`#${fieldName}`] = fieldName
+        expressionAttributeValues[`:${fieldName}`] = partitionedAggregateData[fieldName]
+    })
+    updateExpression = updateExpression.replace(/,\s*$/, "")
+
+    return {
+        TableName: metaData.TableName,
+        Key: {
+            [metaData.PartitionKeyName]: metaData.PartitionKeyValue,
+            [metaData.SortKeyName]: metaData.SortKeyValue,
+        },
+        UpdateExpression: updateExpression,
+        ExpressionAttributeNames: expressionAttributeNames,
+        ExpressionAttributeValues: expressionAttributeValues,
+        ReturnValues: "ALL_NEW",
+        ReturnConsumedCapacity: "TOTAL",
+    }
 }
 
-
-
-
-
-
-
-
-
+const promiseUpdateQuery = (documentClient, query) => {
+    return documentClient.update(query).promise()
+}
