@@ -227,7 +227,7 @@ describe("#createUpdateQuery()", () => {
         expect(uut["Key"]).to.have.property("ddb_partition_key_name")
         expect(uut["Key"]).to.have.property("ddb_sort_key_name")
         expect(uut["Key"]["ddb_partition_key_name"]).to.be.equal("SomePartitionKey")
-        expect(uut["Key"]["ddb_sort_key_name"]).to.be.equal("1562047200")
+        expect(uut["Key"]["ddb_sort_key_name"]).to.be.equal(1562047200)
 
         expect(uut).to.have.property("UpdateExpression")
         expect(uut["UpdateExpression"]).to.be.equal("ADD #anAggregateFieldName :anAggregateFieldName, #anotherAggregateFieldName :anotherAggregateFieldName")        

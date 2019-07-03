@@ -25,6 +25,8 @@ module.exports.hourly = (AWSDocumentClient, metaData = {}, data = {}) => {
 
     let updateQueries = [].concat(...partitionedUpdateQueries)
 
+    console.log(updateQueries)
+
     let promisedUpdateQueries = updateQueries.map(query => promiseUpdateQuery(AWSDocumentClient, query))
 
     return Promise.all(promisedUpdateQueries)
@@ -87,13 +89,13 @@ const createUpdateQuery = (metaData, partitionedAggregateData) => {
         TableName: metaData.TableName,
         Key: {
             [metaData.PartitionKeyName]: metaData.PartitionKeyValue,
-            [metaData.SortKeyName]: metaData.SortKeyValue,
+            [metaData.SortKeyName]: Number(metaData.SortKeyValue)
         },
         UpdateExpression: updateExpression,
         ExpressionAttributeNames: expressionAttributeNames,
         ExpressionAttributeValues: expressionAttributeValues,
         ReturnValues: "ALL_NEW",
-        ReturnConsumedCapacity: "TOTAL",
+        ReturnConsumedCapacity: "TOTAL"
     }
 }
 
